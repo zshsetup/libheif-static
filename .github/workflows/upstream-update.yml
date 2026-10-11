@@ -1,0 +1,75 @@
+name: Update upstream
+on:
+  schedule:
+    - cron: "0 5 * * 1" # Monday 05:00 UTC
+  workflow_dispatch:
+env:
+  NAME: libheif
+  DIR: libheif
+  URL: https://github.com/strukturag/libheif.git
+  PATTERN: '^v[0-9]+(\.[0-9]+)+$'
+  RELEASE_SED: ''
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # a token of the user, as pull requests and merges of GITHUB_TOKEN start no workflows
+      - uses: actions/checkout@v7
+        with:
+          token: ${{ secrets.UPDATE_TOKEN }}
+      - name: Find the latest upstream tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: |
+          latest="$(git ls-remote --tags --refs "$URL" | sed 's|.*refs/tags/||' | grep -E "$PATTERN" | sort -V | tail -n 1)"
+          [ -n "$latest" ] || { echo "::error::no tag of $URL matches $PATTERN"; exit 1; }
+          release="$(printf '%s' "$latest" | sed "${RELEASE_SED:-s/^//}")"
+          echo "latest upstream tag: $latest, release tag: $release"
+          if gh release view "$release" >/dev/null 2>&1; then
+            echo "up to date"
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Check out the tag in vendor/${{ env.DIR }}
+        if: steps.tag.outputs.update == 'true'
+        run: |
+          latest="${{ steps.tag.outputs.latest }}"
+          # savannah.gnu.org intermittently returns HTTP 500
+          for attempt in 1 2 3 4; do
+            git submodule update --init --depth 1 -- "vendor/$DIR" && break
+            [ "$attempt" = 4 ] && exit 1
+            sleep $((attempt * 20))
+          done
+          git -C "vendor/$DIR" fetch --depth 1 origin "refs/tags/$latest:refs/tags/$latest"
+          git -C "vendor/$DIR" checkout -q "$latest"
+          if [ -f VERSION ]; then
+            old="$(cat VERSION)"
+            echo "$latest" > VERSION
+            esc="$(printf '%s' "$old" | sed 's/[][\.*^$|]/\\&/g')"
+            [ -f README.md ] && sed -i "s|$esc|$latest|g" README.md
+          fi
+          git submodule status "vendor/$DIR"
+      - uses: peter-evans/create-pull-request@v8
+        id: pr
+        if: steps.tag.outputs.update == 'true'
+        with:
+          token: ${{ secrets.UPDATE_TOKEN }}
+          commit-message: Update ${{ env.NAME }} to ${{ steps.tag.outputs.latest }}
+          title: Update ${{ env.NAME }} to ${{ steps.tag.outputs.latest }}
+          body: |
+            Moves vendor/${{ env.DIR }} to `${{ steps.tag.outputs.latest }}`. When the checks pass and this is
+            merged, the release `${{ steps.tag.outputs.release }}` is created.
+          branch: upstream-update
+          delete-branch: true
+      - name: Merge when the checks pass
+        if: steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+        run: gh pr merge "${{ steps.pr.outputs.pull-request-number }}" --auto --squash --delete-branch

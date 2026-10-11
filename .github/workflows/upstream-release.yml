@@ -1,0 +1,26 @@
+name: Release upstream update
+on:
+  push:
+    branches: [main]
+env:
+  NAME: libheif
+  RELEASE_SED: ''
+jobs:
+  release:
+    # the merge of a pull request of the update workflow
+    if: startsWith(github.event.head_commit.message, 'Update libheif to ')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create the release, which starts the release workflow
+        env:
+          # a token of the user, as releases of GITHUB_TOKEN start no workflows
+          GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          latest="$(printf '%s\n' "$MESSAGE" | head -n 1 | sed -e "s/^Update $NAME to //" -e 's/ (#[0-9]*)$//')"
+          release="$(printf '%s' "$latest" | sed "${RELEASE_SED:-s/^//}")"
+          echo "release $release for $latest"
+          gh release create "$release" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$release" --notes "$NAME $release, built from upstream $latest"
