@@ -75,8 +75,11 @@ jobs:
         run: |
           number="${{ steps.pr.outputs.pull-request-number }}"
           if ! gh pr merge "$number" --auto --squash --delete-branch; then
-            # auto-merge cannot be enabled for a pull request that is mergeable already, i.e. one
-            # without required checks, which is merged right away instead
-            [ "$(gh pr view "$number" --json mergeStateStatus -q .mergeStateStatus)" = CLEAN ]
-            gh pr merge "$number" --squash --delete-branch
+            # auto-merge cannot be enabled for a pull request without required checks that are
+            # pending, which is merged right away instead; its other checks are not required
+            state="$(gh pr view "$number" --json mergeStateStatus -q .mergeStateStatus)"
+            case "$state" in
+              CLEAN | UNSTABLE) gh pr merge "$number" --squash --delete-branch ;;
+              *) echo "::error::pull request $number cannot be merged ($state)"; exit 1 ;;
+            esac
           fi
