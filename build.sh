@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 #
-# Builds libheif and its codec dependencies (libde265, x265, libaom, dav1d) as
+# Builds libheif and its codec dependencies (libde265, libaom, dav1d, optionally x265) as
 # static libraries, then links a fully static libheif.
 #
-# Usage: ./build.sh [--jobs N] [--clean] [--target native|windows-amd64|windows-arm64]
+# Usage: ./build.sh [--jobs N] [--clean] [--target native|windows-amd64|windows-arm64] [--with-x265]
+#
+# x265 is left out unless --with-x265 is given: it is GPL-2.0-or-later, which makes every binary
+# that links the libraries a GPL work, while the other codecs (libde265, libaom, dav1d: LGPL-3.0 or
+# BSD) do not. Without it libheif decodes HEVC with libde265 and encodes AV1 only.
 #
 # windows-* targets use the llvm-mingw toolchain (auto-downloaded into
 # .llvm-mingw/, no vcpkg needed), either cross-compiled from macOS/Linux or
@@ -16,12 +20,14 @@ EXT_DIR="$ROOT_DIR/vendor"
 JOBS="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)"
 CLEAN=0
 TARGET="native"
+WITH_X265=OFF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --jobs) JOBS="$2"; shift 2 ;;
     --clean) CLEAN=1; shift ;;
     --target) TARGET="$2"; shift 2 ;;
+    --with-x265) WITH_X265=ON; shift ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -211,22 +217,24 @@ cmake -S "$EXT_DIR/libde265" -B "$LIBDE265_BUILD" -G Ninja \
 cmake --build "$LIBDE265_BUILD" -j "$JOBS"
 cmake --install "$LIBDE265_BUILD"
 
-# 2. x265 (static)
-# x265 only installs x265.pc when `git describe --tags` succeeds; shallow clones have no tags.
-if [[ "$(git -C "$EXT_DIR/x265" rev-parse --is-shallow-repository)" == "true" ]]; then
-  echo "==> Fetching full history for x265 (needed for its pkg-config generation)"
-  git -C "$EXT_DIR/x265" fetch --unshallow --tags
-fi
+# 2. x265 (static), only for --with-x265
+if [[ "$WITH_X265" == ON ]]; then
+  # x265 only installs x265.pc when `git describe --tags` succeeds; shallow clones have no tags.
+  if [[ "$(git -C "$EXT_DIR/x265" rev-parse --is-shallow-repository)" == "true" ]]; then
+    echo "==> Fetching full history for x265 (needed for its pkg-config generation)"
+    git -C "$EXT_DIR/x265" fetch --unshallow --tags
+  fi
 
-echo "==> Building x265"
-X265_BUILD="$BUILD_DIR/x265"
-cmake -S "$EXT_DIR/x265/source" -B "$X265_BUILD" -G Ninja \
-  "${CMAKE_COMMON[@]}" \
-  -DENABLE_SHARED=OFF \
-  -DENABLE_CLI=OFF \
-  -DSTATIC_LINK_CRT=ON
-cmake --build "$X265_BUILD" -j "$JOBS"
-cmake --install "$X265_BUILD"
+  echo "==> Building x265"
+  X265_BUILD="$BUILD_DIR/x265"
+  cmake -S "$EXT_DIR/x265/source" -B "$X265_BUILD" -G Ninja \
+    "${CMAKE_COMMON[@]}" \
+    -DENABLE_SHARED=OFF \
+    -DENABLE_CLI=OFF \
+    -DSTATIC_LINK_CRT=ON
+  cmake --build "$X265_BUILD" -j "$JOBS"
+  cmake --install "$X265_BUILD"
+fi
 
 # 3. libaom (static)
 echo "==> Building libaom"
@@ -292,7 +300,7 @@ cmake -S "$EXT_DIR/libheif" -B "$LIBHEIF_BUILD" -G Ninja \
   -DCMAKE_C_FLAGS="-DLIBDE265_STATIC_BUILD -DLIBHEIF_STATIC_BUILD" \
   -DCMAKE_CXX_FLAGS="-DLIBDE265_STATIC_BUILD -DLIBHEIF_STATIC_BUILD" \
   -DWITH_LIBDE265=ON \
-  -DWITH_X265=ON \
+  -DWITH_X265="$WITH_X265" \
   -DWITH_AOM_DECODER=ON \
   -DWITH_AOM_ENCODER=ON \
   -DWITH_DAV1D=ON \
@@ -314,8 +322,10 @@ if [[ "$TARGET" == "native" && "$(uname -s)" == "Linux" && "$(ldd --version 2>&1
     fi
     cp "$ARCHIVE_PATH" "$PREFIX/lib/$ARCHIVE"
   done
-  sed -i.bak -e 's/-lgcc_s /-lgcc_eh /g' -e 's/-lgcc_s$/-lgcc_eh/' "$PREFIX/lib/pkgconfig/x265.pc"
-  rm -f "$PREFIX/lib/pkgconfig/x265.pc.bak"
+  if [[ -f "$PREFIX/lib/pkgconfig/x265.pc" ]]; then
+    sed -i.bak -e 's/-lgcc_s /-lgcc_eh /g' -e 's/-lgcc_s$/-lgcc_eh/' "$PREFIX/lib/pkgconfig/x265.pc"
+    rm -f "$PREFIX/lib/pkgconfig/x265.pc.bak"
+  fi
   if ! grep -q -- '-lgcc_eh' "$PREFIX/lib/pkgconfig/libheif.pc"; then
     sed -i.bak '/^Libs.private:/ s/$/ -lgcc_eh/' "$PREFIX/lib/pkgconfig/libheif.pc"
     rm -f "$PREFIX/lib/pkgconfig/libheif.pc.bak"
@@ -336,7 +346,9 @@ done
 # catches x265.pc-style install gaps in any dependency.
 echo "==> Verifying pkg-config files"
 MISSING_PC=0
-for PC_NAME in libheif libde265 x265 aom dav1d libsharpyuv; do
+EXPECTED_PC=(libheif libde265 aom dav1d libsharpyuv)
+[[ "$WITH_X265" == ON ]] && EXPECTED_PC+=(x265)
+for PC_NAME in "${EXPECTED_PC[@]}"; do
   if [[ ! -e "$PREFIX/lib/pkgconfig/$PC_NAME.pc" ]]; then
     echo "ERROR: missing $PREFIX/lib/pkgconfig/$PC_NAME.pc" >&2
     MISSING_PC=1

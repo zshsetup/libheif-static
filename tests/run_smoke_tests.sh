@@ -98,7 +98,12 @@ if [[ "$NO_BUILD" -eq 0 ]]; then
     fi
   fi
 
-  LIBHEIF_LIBS=(-lheif -lde265 -lx265 -laom -ldav1d -lsharpyuv)
+  LIBHEIF_LIBS=(-lheif -lde265 -laom -ldav1d -lsharpyuv)
+  # x265 is only in builds made with --with-x265
+  if [[ -f "$DIST_DIR/lib/libx265.a" ]]; then
+    LIBHEIF_LIBS+=(-lx265)
+    DEFINES+=(-DHAVE_X265)
+  fi
   if [[ "$IS_MUSL" -eq 1 ]]; then
     read -r -a LIBHEIF_LIBS <<< "$(PKG_CONFIG_PATH="$DIST_DIR/lib/pkgconfig" PKG_CONFIG_LIBDIR="$DIST_DIR/lib/pkgconfig" \
       pkg-config --libs --static libheif)"

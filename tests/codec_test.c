@@ -153,17 +153,24 @@ int main(int argc, char** argv) {
 
   int fail = 0;
 
+#ifdef HAVE_X265
   char hevc_path[4096];
   snprintf(hevc_path, sizeof(hevc_path), "%s/codec_test_x265.heic", tmp_dir);
   fail |= encode_and_roundtrip(image, heif_compression_HEVC, hevc_path, 0);
+#endif
 
   char av1_path[4096];
   snprintf(av1_path, sizeof(av1_path), "%s/codec_test_aom.avif", tmp_dir);
   fail |= encode_and_roundtrip(image, heif_compression_AV1, av1_path, 0);
 
   char sharp_path[4096];
+#ifdef HAVE_X265
   snprintf(sharp_path, sizeof(sharp_path), "%s/codec_test_sharpyuv.heic", tmp_dir);
   fail |= encode_and_roundtrip(image, heif_compression_HEVC, sharp_path, 1);
+#else
+  snprintf(sharp_path, sizeof(sharp_path), "%s/codec_test_sharpyuv.avif", tmp_dir);
+  fail |= encode_and_roundtrip(image, heif_compression_AV1, sharp_path, 1);
+#endif
 
   fail |= decode_with_decoder_id(av1_path, "dav1d");
   fail |= decode_with_decoder_id(av1_path, "aom");

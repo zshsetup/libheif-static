@@ -16,7 +16,7 @@ libde265
   Copyright (c) 2013-2025 Dirk Farin, struktur AG, and contributors
   License: GNU Lesser General Public License v3.0 (LGPL-3.0)
 
-x265
+x265 (only in builds made with --with-x265, which the releases are not)
   https://bitbucket.org/multicoreware/x265_git
   Copyright (c) MulticoreWare, Inc. and contributors
   License: GNU General Public License v2.0 or later (GPL-2.0-or-later)
@@ -45,14 +45,12 @@ GCC runtime libraries (linux-musl-* artifacts only: lib/libstdc++.a, lib/libgcc_
   (GPL-3.0-or-later WITH GCC-exception-3.1), copied unmodified from the Alpine Linux toolchain
   that compiled the other libraries so that consumers depend on nothing but the musl libc.
 
-Because x265 is GPL-2.0-or-later, and GPL has no static-linking exception, distributing a
-static library that embeds x265 makes the resulting archive a combined GPL work: anyone who
-redistributes it (including the release tarballs from this repo) must also satisfy the GPL,
-such as making the corresponding source available and keeping the GPL notice attached.
-libheif and libde265 are LGPL-3.0, which does permit static linking, but still requires
-satisfying LGPLv3 section 4 (e.g. providing the object files needed to relink against a
-modified version of the library).
+The releases are built without x265, so none of the libraries in them is GPL: libheif and libde265
+are LGPL-3.0, which permits static linking but requires satisfying LGPLv3 section 4 (e.g. providing
+the object files needed to relink against a modified version of the library, which the source
+archive and the static libraries allow); libaom, dav1d, and libwebp are BSD.
 
-To produce an artifact without the GPL obligation, build with WITH_X265=OFF in build.sh; the
-remaining libraries (libheif, libde265: LGPL-3.0; libaom, dav1d, libwebp: BSD) still apply
-their own terms, but none of them are GPL.
+If you build with --with-x265, x265 is GPL-2.0-or-later, and GPL has no static-linking exception,
+so the resulting archive and everything that links it are a combined GPL work: anyone who
+redistributes it must also satisfy the GPL, such as making the corresponding source available and
+keeping the GPL notice attached.
