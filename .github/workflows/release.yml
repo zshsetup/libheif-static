@@ -6,7 +6,20 @@ on:
 permissions:
   contents: write
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check that the release tag is the version of libheif in vendor/libheif
+        run: |
+          git submodule update --init --depth 1 vendor/libheif
+          version="v$(sed -n 's/^project(libheif .* VERSION \([0-9.]*\).*/\1/p' vendor/libheif/CMakeLists.txt)"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match vendor/libheif ($version)"
+            exit 1
+          fi
   build:
+    needs: check-version
     strategy:
       matrix:
         include:
