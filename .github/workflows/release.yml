@@ -71,6 +71,8 @@ jobs:
         shell: bash
         run: |
           dist="${{ matrix.dist_dir }}"
+          # the musl build runs as root in a container, which owns dist
+          sudo chown -R "$(id -u):$(id -g)" "$dist"
           # the license texts travel with the libraries
           lic="$dist/share/licenses/libheif-static"
           mkdir -p "$lic"
