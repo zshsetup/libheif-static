@@ -69,11 +69,26 @@ jobs:
             ./build.sh --target ${{ matrix.target }}'
       - name: Package static libraries
         shell: bash
-        run: tar -czf libheif-static-${{ matrix.asset }}.tar.gz -C ${{ matrix.dist_dir }} .
+        run: |
+          dist="${{ matrix.dist_dir }}"
+          # the license texts travel with the libraries
+          lic="$dist/share/licenses/libheif-static"
+          mkdir -p "$lic"
+          cp LICENSE NOTICE "$lic/"
+          for dir in vendor/*/; do
+            for file in "$dir"LICENSE* "$dir"LICENCE* "$dir"COPYING*; do
+              [ -f "$file" ] && cp "$file" "$lic/$(basename "$dir")-$(basename "$file")" || true
+            done
+          done
+          tar -czf libheif-static-${{ matrix.asset }}.tar.gz -C "$dist" .
+      - name: Collect sources
+        if: matrix.asset == 'linux-amd64'
+        shell: bash
+        run: tar -czf libheif-static-sources.tar.gz --exclude=.git vendor
       - uses: actions/upload-artifact@v7
         with:
           name: libheif-static-${{ matrix.asset }}
-          path: libheif-static-${{ matrix.asset }}.tar.gz
+          path: libheif-static-*.tar.gz
           retention-days: 1
   release:
     name: Create GitHub Release
