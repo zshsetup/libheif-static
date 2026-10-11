@@ -74,11 +74,9 @@ jobs:
           GH_TOKEN: ${{ secrets.UPDATE_TOKEN }}
         run: |
           number="${{ steps.pr.outputs.pull-request-number }}"
-          # auto-merge cannot be enabled for a pull request that is mergeable already, i.e. one
-          # without required checks, which is merged right away instead
-          state="$(gh pr view "$number" --json mergeStateStatus -q .mergeStateStatus)"
-          if [ "$state" = CLEAN ]; then
+          if ! gh pr merge "$number" --auto --squash --delete-branch; then
+            # auto-merge cannot be enabled for a pull request that is mergeable already, i.e. one
+            # without required checks, which is merged right away instead
+            [ "$(gh pr view "$number" --json mergeStateStatus -q .mergeStateStatus)" = CLEAN ]
             gh pr merge "$number" --squash --delete-branch
-          else
-            gh pr merge "$number" --auto --squash --delete-branch
           fi
