@@ -121,7 +121,7 @@ if [[ "$TARGET" != "native" ]]; then
     mkdir -p "$MINGW_DIR"
     case "$DOWNLOAD_URL" in
       *.zip)
-        # Git Bash's tar can't extract .zip; use PowerShell's Expand-Archive instead.
+        # tar of Git Bash cannot extract .zip, so use Expand-Archive of PowerShell instead.
         ARCHIVE="$BUILD_DIR/llvm-mingw.zip"
         EXTRACT_DIR="$BUILD_DIR/llvm-mingw-extract"
         curl -sL "$DOWNLOAD_URL" -o "$ARCHIVE"
@@ -158,8 +158,8 @@ if [[ "$TARGET" != "native" ]]; then
     fi
   fi
 
-  # toolchain.cmake/cross-file.ini are read as file content, so they miss Git
-  # Bash's argv-only POSIX->Windows path translation; convert explicitly.
+  # toolchain.cmake/cross-file.ini are read as file content, so they miss the path translation
+  # from POSIX to Windows that Git Bash only does for arguments; convert explicitly.
   MINGW_DIR_FILE="$MINGW_DIR"
   PREFIX_FILE="$PREFIX"
   if [[ "$HOST_IS_WINDOWS" -eq 1 ]]; then
@@ -201,7 +201,7 @@ endian = 'little'
 EOF
   MESON_CROSS_ARGS=(--cross-file "$CROSS_FILE")
 
-  # avoid picking up the host's incompatible-architecture .pc files.
+  # avoid picking up .pc files of the host, which have an incompatible architecture.
   export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig"
 fi
 

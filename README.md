@@ -79,5 +79,5 @@ submodules under `vendor/`. Credit goes to their respective authors:
 
 ## License
 
-MIT for this repository's own code. See NOTICE for the licenses of the vendored libraries and
+MIT for the code of this repository. See NOTICE for the licenses of the vendored libraries and
 the resulting static-library artifacts, which are LGPL (and GPL with `--with-x265`).
