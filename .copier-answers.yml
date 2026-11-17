@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier
-_commit: '6196493'
+_commit: b41a828
 _src_path: gh:audivir/copier-template
 description: Static build of libheif and its codec dependencies
 github_org: zshsetup

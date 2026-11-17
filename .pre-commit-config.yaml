@@ -65,7 +65,7 @@ repos:
         #  - id: clang-format
   # toml formatting
   - repo: https://github.com/tombi-toml/tombi-pre-commit
-    rev: v1.9.8
+    rev: v1.11.2
     hooks:
       - id: tombi-format
         exclude: (^|/)Cargo\.lock$
